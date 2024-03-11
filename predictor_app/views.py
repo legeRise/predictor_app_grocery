@@ -50,6 +50,7 @@ def all_models(request):
 
 @csrf_exempt
 def predict(request, model_name):
+    model_name =model_name.lower()
     global MODELS
     if MODELS is None:
         MODELS = load_models(settings.MODEL_PATHS)
