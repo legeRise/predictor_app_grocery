@@ -1,51 +1,50 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from .models import Product
+from .models import Product,Prediction_Model
 from .model_loader import load_models
 import numpy as np
 import json
 
-MODELS = None
 
+# ENDPOINTS for GET REQUEST
 
 @csrf_exempt
-def all_products(request):
+def list_models(request):
+    models = Prediction_Model.objects.all()
+    models =  [ {"product_name": model.product.name, "model_name" : model.name,"available" : bool(model.model_path) } for model in models]
+    return JsonResponse({'available_models': models})
+
+@csrf_exempt
+def list_products(request):
     products_data =Product.objects.all()
     all_product_list = {f"product_{count+1}":{"product_id":product.id,"product_name":product.name,"product_price":product.price,"product_desc":product.description} for count,product in enumerate(products_data)}
-    print(all_product_list)
-
-
     return JsonResponse(all_product_list,safe=False)
+
+
 
 @csrf_exempt
 def add_product(request):
     if request.method == 'POST':
-        print('yep the method is post')
         data = json.loads(request.body)
-        print(data)
+
         product_name = data.get('product_name').lower()
         product_price = data.get('product_price')
         product_desc = data.get('product_desc')
-        print(product_name,product_price,product_desc)
-        # Creating a new Product instance and saving it to the database
-        new_product = Product(name=product_name, price=product_price, description=product_desc)
-        new_product.save()
- 
+        
+        #Creating a new Product instance and saving it to the database
+        product_instance = Product(name=product_name, price=product_price, description=product_desc)
+        product_instance.save()
+        Prediction_Model.objects.create(name=f"{product_name}_model", product=product_instance)
+
         return JsonResponse({'success': True, 'message': f'Product {product_name} added successfully'})
     else:
-        # Handle GET requests if needed
-        return JsonResponse({'error': 'Only POST requests are allowed for adding products'}, status=405)
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
 
+   
 
-@csrf_exempt
-def all_models(request):
-    global MODELS
-    if MODELS is None:
-        MODELS = load_models(settings.MODEL_PATHS)
-    return JsonResponse({'available_models': list(settings.MODEL_PATHS.keys())})
 
 
 @csrf_exempt
@@ -73,3 +72,15 @@ def predict(request, model_name):
         return JsonResponse({'expected_sales': int(prediction.sum()),'model_exists':True})
     
     return JsonResponse({'message': 'Method Not Allowed'},safe=False)
+
+
+@csrf_exempt
+def delete_product(request,product_id):
+    product = Product.objects.get(id=product_id)
+    name = product.name
+    if request.method == 'DELETE':
+        product.delete()
+        return JsonResponse({"message" : f" Product '{name}' Removed Successfully!","deleted" : True})
+    return JsonResponse({'message': 'Method not allowed'})
+
+
